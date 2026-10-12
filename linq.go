@@ -68,3 +68,49 @@ func Select[T, R any](q Query[T], selector func(T) R) Query[R] {
 		}
 	}}
 }
+
+// SelectMany projects each element to a slice and flattens the results
+// into one query.
+func SelectMany[T, R any](q Query[T], selector func(T) []R) Query[R] {
+	return Query[R]{seq: func(yield func(R) bool) {
+		for x := range q.Seq() {
+			for _, inner := range selector(x) {
+				if !yield(inner) {
+					return
+				}
+			}
+		}
+	}}
+}
+
+// SelectManySeq is like SelectMany, but the selector returns a Query,
+// so inner sequences are also streamed lazily.
+func SelectManySeq[T, R any](q Query[T], selector func(T) Query[R]) Query[R] {
+	return Query[R]{seq: func(yield func(R) bool) {
+		for x := range q.Seq() {
+			for inner := range selector(x).Seq() {
+				if !yield(inner) {
+					return
+				}
+			}
+		}
+	}}
+}
+
+// SelectManyResult projects each element to a slice, then calls
+// resultSelector with the original element and each inner item.
+func SelectManyResult[T, U, R any](
+	q Query[T],
+	selector func(T) []U,
+	resultSelector func(T, U) R,
+) Query[R] {
+	return Query[R]{seq: func(yield func(R) bool) {
+		for x := range q.Seq() {
+			for _, inner := range selector(x) {
+				if !yield(resultSelector(x, inner)) {
+					return
+				}
+			}
+		}
+	}}
+}
