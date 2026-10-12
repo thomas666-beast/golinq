@@ -44,3 +44,27 @@ func (q Query[T]) ToSlice() []T {
 	}
 	return result
 }
+
+// Where keeps only the elements for which predicate returns true.
+func (q Query[T]) Where(predicate func(T) bool) Query[T] {
+	return Query[T]{seq: func(yield func(T) bool) {
+		for x := range q.Seq() {
+			if predicate(x) && !yield(x) {
+				return
+			}
+		}
+	}}
+}
+
+// Select transforms each element using selector.
+// It is a function rather than a method because Go methods cannot
+// introduce new type parameters.
+func Select[T, R any](q Query[T], selector func(T) R) Query[R] {
+	return Query[R]{seq: func(yield func(R) bool) {
+		for x := range q.Seq() {
+			if !yield(selector(x)) {
+				return
+			}
+		}
+	}}
+}
