@@ -69,3 +69,7 @@ Variants that C# expresses as overloads get their own names, such as
 go test ./...
 go test -bench=. -benchmem -run='^$'
 ```
+
+## License
+
+MIT
