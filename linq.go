@@ -114,3 +114,92 @@ func SelectManyResult[T, U, R any](
 		}
 	}}
 }
+
+// Take returns the first count elements. A non-positive count gives
+// an empty sequence. It never pulls more elements than it needs.
+func (q Query[T]) Take(count int) Query[T] {
+	return Query[T]{seq: func(yield func(T) bool) {
+		if count <= 0 {
+			return
+		}
+		n := 0
+		for x := range q.Seq() {
+			if !yield(x) {
+				return
+			}
+			n++
+			if n >= count {
+				return
+			}
+		}
+	}}
+}
+
+// Skip skips the first count elements and returns the rest.
+// A non-positive count skips nothing.
+func (q Query[T]) Skip(count int) Query[T] {
+	return Query[T]{seq: func(yield func(T) bool) {
+		n := 0
+		for x := range q.Seq() {
+			if n < count {
+				n++
+				continue
+			}
+			if !yield(x) {
+				return
+			}
+		}
+	}}
+}
+
+// TakeWhile returns elements while predicate is true, stopping at the
+// first failure.
+func (q Query[T]) TakeWhile(predicate func(T) bool) Query[T] {
+	return Query[T]{seq: func(yield func(T) bool) {
+		for x := range q.Seq() {
+			if !predicate(x) || !yield(x) {
+				return
+			}
+		}
+	}}
+}
+
+// SkipWhile skips elements while predicate is true, then returns
+// everything after.
+func (q Query[T]) SkipWhile(predicate func(T) bool) Query[T] {
+	return Query[T]{seq: func(yield func(T) bool) {
+		skipping := true
+		for x := range q.Seq() {
+			if skipping && predicate(x) {
+				continue
+			}
+			skipping = false
+			if !yield(x) {
+				return
+			}
+		}
+	}}
+}
+
+// Chunk splits the query into slices of at most size elements.
+// It panics if size is less than 1.
+func Chunk[T any](q Query[T], size int) Query[[]T] {
+	if size < 1 {
+		panic("linq: Chunk size must be greater than 0")
+	}
+	return Query[[]T]{seq: func(yield func([]T) bool) {
+		batch := make([]T, 0, size)
+		for x := range q.Seq() {
+			batch = append(batch, x)
+			if len(batch) == size {
+				if !yield(batch) {
+					return
+				}
+				batch = make([]T, 0, size)
+			}
+		}
+		if len(batch) > 0 {
+			yield(batch)
+		}
+	}}
+}
